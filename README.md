@@ -2,26 +2,36 @@
 
 EyeSee is a small Windows desktop app that tracks active laptop use and enables the built-in Windows Night light after a configurable interval.
 
+The timer starts automatically when EyeSee opens. The window is fixed at 380x430 pixels.
+
 ## Run
 
-Open PowerShell in this folder and run:
+Double-click `EyeSee.bat` to start EyeSee without opening a console window. The batch file launches `eye_see.py` with `pythonw`.
+
+You can also run the app from PowerShell:
 
 ```powershell
 python eye_see.py
 ```
 
-For a background launch without a console window, double-click `run_background.bat`. It starts EyeSee minimized while keeping its settings window available from the taskbar.
+Python must be installed and available as `python` and `pythonw`.
 
-When tray support is installed, EyeSee also appears in the Windows system tray. Right-click the EyeSee tray icon to show the settings, pause/resume, or exit the app. The main window remains visible in the taskbar, and its `X` exits the app.
+When `pystray` and `Pillow` are installed, EyeSee also appears in the Windows system tray. Right-click the EyeSee tray icon to show the settings, pause/resume, or exit the app. Without those optional packages, the main window still works normally.
 
-## Build A Standalone EXE
+## Optional Tray Support
 
-Double-click `build_exe.bat`. It installs the tray dependencies and PyInstaller if needed, then creates `dist\EyeSee.exe`. Run that executable to use EyeSee on a Windows laptop without Python installed.
+Install the optional tray dependencies with:
 
-To start it automatically when Windows logs in, press `Win+R`, enter `shell:startup`, and place a shortcut to `dist\EyeSee.exe` in that folder.
+```powershell
+python -m pip install pystray Pillow
+```
 
-The app starts with a 60-minute work interval, a 10-minute rest, and a prompt enabled. Use **Save settings** to change the schedule. Use the window `X` or tray **Exit** to end the process.
+## Settings
 
-The timer counts active input time, rather than time the laptop is idle. During a rest, Windows Night light changes the display without blocking keyboard or mouse activity. Closing the window ends the app process and restores Night light if EyeSee enabled it. Settings are saved as `settings.json` beside the script or executable.
+The default schedule is a 30-minute work interval, a 10-minute rest, and a prompt before Night light starts. Use **Save settings** to change the schedule. Work intervals can be 1 to 1440 minutes; rests can be 1 to 180 minutes.
 
-EyeSee does not connect to the internet or send telemetry. It uses only local Windows APIs and the local settings file while running. The optional `build_exe.bat` script may download PyInstaller once during setup if PyInstaller is not already installed.
+The timer counts active input time, rather than time the laptop is idle. During a rest, Windows Night light changes the display without blocking keyboard or mouse activity. Closing the window ends the app process and restores Night light if EyeSee enabled it. Settings are saved as `settings.json` beside the script.
+
+## Privacy
+
+EyeSee does not connect to the internet or send telemetry. It uses local Windows APIs and the local settings file while running. The optional tray packages are downloaded only when you install them yourself with `pip`.
