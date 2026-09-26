@@ -1,6 +1,7 @@
 {
-  "work_minutes": 30,
+  "work_minutes": 60,
   "rest_minutes": 10,
   "prompt": true,
+  "alarm": true,
   "enabled": true
 }

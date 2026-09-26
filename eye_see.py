@@ -9,15 +9,16 @@ import time
 import tkinter as tk
 from tkinter import messagebox, ttk
 import winreg
-
+import winsound
 
 APP_NAME = "EyeSee"
 APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__))
 APP_DATA_DIR = APP_DIR
 SETTINGS_FILE = os.path.join(APP_DATA_DIR, "settings.json")
-DEFAULTS = {"work_minutes": 60, "rest_minutes": 10, "prompt": True, "enabled": True}
+DEFAULTS = {"work_minutes": 60, "rest_minutes": 10, "prompt": True, "alarm": False, "enabled": True}
+PAUSE_BUTTON_COLORS = ("#c0392b", "#a93226")
+PLAY_BUTTON_COLORS = ("#1f6b45", "#175536")
 NIGHT_LIGHT_KEY = r"Software\Microsoft\Windows\CurrentVersion\CloudStore\Store\DefaultAccount\Current\default$windows.data.bluelightreduction.bluelightreductionstate\windows.data.bluelightreduction.bluelightreductionstate"
-
 
 class EyeSeeApp:
     def __init__(self):
@@ -27,7 +28,6 @@ class EyeSeeApp:
         self.resting = False
         self.active_seconds = 0.0
         self.rest_seconds = 0.0
-        self.rest_started_at = None
         self.last_tick = time.monotonic()
         self.last_input = self.get_last_input_time()
         self.night_light_changed = False
@@ -35,10 +35,12 @@ class EyeSeeApp:
 
         self.root = tk.Tk()
         self.root.title(APP_NAME)
-        self.root.geometry("380x430")
+        self.root.geometry("350x1")
         self.root.resizable(False, False)
         self.root.protocol("WM_DELETE_WINDOW", self.close_app)
         self.build_ui()
+        self.root.update_idletasks()
+        self.root.geometry(f"350x{self.root.winfo_reqheight()}")
         self.setup_tray()
         self.root.after_idle(self.tick)
 
@@ -79,73 +81,128 @@ class EyeSeeApp:
         style.configure("TEntry", fieldbackground="#17211f", foreground=text, insertcolor=text)
         style.configure("Accent.TButton", background="#c76543", foreground="#ffffff", padding=(8, 4), borderwidth=0)
         style.map("Accent.TButton", background=[("active", "#dd7954"), ("pressed", "#a94f35")], foreground=[("disabled", "#9aa8a3"), ("!disabled", "#ffffff")])
-        style.configure("Save.TButton", background="#3f9a70", foreground="#ffffff", padding=(8, 4), borderwidth=0)
-        style.map("Save.TButton", background=[("active", "#52b783"), ("pressed", "#327a59")], foreground=[("disabled", "#9aa8a3"), ("!disabled", "#ffffff")])
-
         page = ttk.Frame(self.root, padding=20)
         page.pack(fill="both", expand=True)
         header = ttk.Frame(page)
         header.pack(fill="x", anchor="w")
-        ttk.Label(header, text="EyeSee", style="Title.TLabel").pack(anchor="center")
+        header.configure(height=42)
+        header.pack_propagate(False)
+        ttk.Label(header, text="EyeSee", style="Title.TLabel").place(
+            relx=0.5,
+            rely=0.5,
+            anchor="center",
+        )
+        header_actions = ttk.Frame(header)
+        header_actions.pack(side="right", anchor="center")
+        settings_button = tk.Button(
+            header_actions,
+            text="⚙",
+            command=self.open_settings,
+            font=("Segoe UI Symbol", 16),
+            bg=background,
+            fg=text,
+            activebackground=panel,
+            activeforeground=text,
+            relief="flat",
+            borderwidth=0,
+            padx=6,
+            pady=2,
+            cursor="hand2",
+        )
+        settings_button.pack(side="right")
+        settings_button.configure(takefocus=True)
+        self.restart_button = tk.Button(
+            header_actions,
+            text="↻",
+            command=self.restart_app,
+            font=("Segoe UI Symbol", 16),
+            bg=background,
+            fg=text,
+            activebackground=panel,
+            activeforeground=text,
+            relief="flat",
+            borderwidth=0,
+            padx=6,
+            pady=2,
+            cursor="hand2",
+        )
+        self.restart_button.pack(side="right")
+        self.restart_button.configure(takefocus=True)
         actions = ttk.Frame(page)
         actions.pack(fill="x", pady=(8, 0))
         button_row = ttk.Frame(actions)
         button_row.pack()
         self.toggle_button = self.add_action_button(
             button_row,
-            "Pause" if self.running else "Resume",
+            "⏸ Pause" if self.running else "▶ Play",
             self.toggle_running,
-            "#c76543",
-            "#dd7954",
+            *(PAUSE_BUTTON_COLORS if self.running else PLAY_BUTTON_COLORS),
             (0, 6),
         )
-        self.add_action_button(
-            button_row,
-            "Save settings",
-            self.apply_settings,
-            "#3f9a70",
-            "#52b783",
-            (0, 6),
-        )
-        self.add_action_button(
-            button_row,
-            "Restart",
-            self.restart_app,
-            "#3f6f9a",
-            "#5087b8",
-        )
-        self.status_var = tk.StringVar()
-        self.status_label = ttk.Label(page, textvariable=self.status_var, style="Subtitle.TLabel", wraplength=380)
-        self.status_label.pack(fill="x", anchor="w", pady=(4, 12))
-        self.timestamp_var = tk.StringVar(value="Next rest time will appear when the timer starts.")
-        ttk.Label(page, textvariable=self.timestamp_var, style="Subtitle.TLabel", wraplength=380).pack(
-            fill="x", anchor="w", pady=(0, 12)
-        )
-        page.bind("<Configure>", self.resize_status_text)
+        self.timer_line_var = tk.StringVar()
+        ttk.Label(
+            page,
+            textvariable=self.timer_line_var,
+            style="Subtitle.TLabel",
+            wraplength=380,
+            anchor="center",
+            justify="center",
+        ).pack(fill="x", pady=(8, 16))
 
         settings_area = ttk.Frame(page)
         settings_area.pack(fill="x")
-        settings_area.columnconfigure(0, weight=1)
-        settings_area.columnconfigure(1, weight=1)
-
         schedule = ttk.LabelFrame(settings_area, text="  Schedule  ", style="Card.TLabelframe", padding=14)
         self.work_var = tk.StringVar(value=str(self.settings["work_minutes"]))
         self.rest_var = tk.StringVar(value=str(self.settings["rest_minutes"]))
         self.add_number_row(schedule, "Work Intervals", self.work_var, "minutes")
         self.add_number_row(schedule, "Night Light Rest", self.rest_var, "minutes")
-
-        options = ttk.LabelFrame(settings_area, text="  Preferences  ", style="Card.TLabelframe", padding=14)
+        self.add_action_button(
+            schedule,
+            "Save schedule",
+            self.save_schedule,
+            "#3f9a70",
+            "#52b783",
+            side="top",
+            pady=(10, 0),
+        )
         self.prompt_var = tk.BooleanVar(value=self.settings["prompt"])
-        ttk.Checkbutton(options, text="Prompt me before starting a rest", variable=self.prompt_var).pack(anchor="w")
-        ttk.Label(options, text="Uses Windows Night light without affecting usage.", style="Card.TLabel").pack(anchor="w", pady=(9, 0))
-        self.settings_area = settings_area
-        self.schedule_panel = schedule
-        self.options_panel = options
-        self.settings_layout_is_wide = None
-        page.bind("<Configure>", self.resize_settings_layout, add="+")
-        self.resize_settings_layout()
+        self.alarm_var = tk.BooleanVar(value=self.settings["alarm"])
+        schedule.pack(fill="x")
+        self.settings_expanded = False
+        self.settings_panel = ttk.LabelFrame(settings_area, text="  Settings  ", style="Card.TLabelframe", padding=14)
+        ttk.Checkbutton(
+            self.settings_panel,
+            text="Prompt me before starting a rest",
+            variable=self.prompt_var,
+        ).pack(anchor="w")
+        ttk.Checkbutton(
+            self.settings_panel,
+            text="Play a beep alert when rest ends",
+            variable=self.alarm_var,
+        ).pack(anchor="w", pady=(10, 0))
+        settings_actions = ttk.Frame(self.settings_panel, style="Card.TFrame")
+        settings_actions.pack(fill="x", pady=(14, 0))
+        self.add_action_button(
+            settings_actions,
+            "Save preferences",
+            self.save_preferences,
+            "#3f9a70",
+            "#52b783",
+            side="right",
+        )
+        self.settings_panel.pack_forget()
 
-    def add_action_button(self, parent, text, command, background, active_background, padx=(0, 0)):
+    def add_action_button(
+        self,
+        parent,
+        text,
+        command,
+        background,
+        active_background,
+        padx=(0, 0),
+        side="left",
+        pady=0,
+    ):
         button = tk.Button(
             parent,
             text=text,
@@ -159,26 +216,17 @@ class EyeSeeApp:
             padx=8,
             pady=4,
         )
-        button.pack(side="left", padx=padx)
+        button.pack(side=side, padx=padx, pady=pady)
         return button
 
-    def resize_status_text(self, event):
-        self.status_label.configure(wraplength=max(280, event.width - 56))
-
-    def resize_settings_layout(self, event=None):
-        available_width = self.settings_area.winfo_width()
-        is_wide = available_width >= 560
-        if is_wide == self.settings_layout_is_wide:
-            return
-        self.settings_layout_is_wide = is_wide
-        self.schedule_panel.grid_forget()
-        self.options_panel.grid_forget()
-        if is_wide:
-            self.schedule_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-            self.options_panel.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+    def open_settings(self):
+        self.settings_expanded = not self.settings_expanded
+        if self.settings_expanded:
+            self.settings_panel.pack(fill="x", pady=(12, 0))
         else:
-            self.schedule_panel.grid(row=0, column=0, columnspan=2, sticky="ew")
-            self.options_panel.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(12, 0))
+            self.settings_panel.pack_forget()
+        self.root.update_idletasks()
+        self.root.geometry(f"{self.root.winfo_width()}x{self.root.winfo_reqheight()}")
 
     def add_number_row(self, parent, label, variable, suffix):
         row = ttk.Frame(parent, style="Card.TFrame")
@@ -200,14 +248,17 @@ class EyeSeeApp:
         ).pack(side="right", padx=(0, 8))
 
     def apply_settings(self):
-        try:
-            work_minutes = max(1, min(1440, int(self.work_var.get())))
-            rest_minutes = max(1, min(180, int(self.rest_var.get())))
-        except ValueError:
-            messagebox.showerror(APP_NAME, "Use whole numbers for the schedule.", parent=self.root)
+        schedule = self.read_schedule()
+        if schedule is None:
             return False
+        work_minutes, rest_minutes = schedule
         previous_settings = self.settings.copy()
-        self.settings.update({"work_minutes": work_minutes, "rest_minutes": rest_minutes, "prompt": self.prompt_var.get()})
+        self.settings.update({
+            "work_minutes": work_minutes,
+            "rest_minutes": rest_minutes,
+            "prompt": self.prompt_var.get(),
+            "alarm": self.alarm_var.get(),
+        })
         try:
             self.save_settings()
         except OSError as error:
@@ -216,7 +267,43 @@ class EyeSeeApp:
             return False
         self.work_var.set(str(work_minutes))
         self.rest_var.set(str(rest_minutes))
-        self.status_var.set("Settings saved. EyeSee is watching your active time.")
+        return True
+
+    def read_schedule(self):
+        try:
+            work_minutes = max(1, min(1440, int(self.work_var.get())))
+            rest_minutes = max(1, min(180, int(self.rest_var.get())))
+        except ValueError:
+            messagebox.showerror(APP_NAME, "Use whole numbers for the schedule.", parent=self.root)
+            return None
+        return work_minutes, rest_minutes
+
+    def save_schedule(self):
+        schedule = self.read_schedule()
+        if schedule is None:
+            return False
+        work_minutes, rest_minutes = schedule
+        previous_settings = self.settings.copy()
+        self.settings.update({"work_minutes": work_minutes, "rest_minutes": rest_minutes})
+        try:
+            self.save_settings()
+        except OSError as error:
+            self.settings = previous_settings
+            messagebox.showerror(APP_NAME, f"Could not save schedule:\n{error}", parent=self.root)
+            return False
+        self.work_var.set(str(work_minutes))
+        self.rest_var.set(str(rest_minutes))
+        return True
+
+    def save_preferences(self):
+        previous_settings = self.settings.copy()
+        self.settings.update({"prompt": self.prompt_var.get(), "alarm": self.alarm_var.get()})
+        try:
+            self.save_settings()
+        except OSError as error:
+            self.settings = previous_settings
+            messagebox.showerror(APP_NAME, f"Could not save preferences:\n{error}", parent=self.root)
+            return False
         return True
 
     def restart_app(self):
@@ -248,20 +335,23 @@ class EyeSeeApp:
             self.settings["enabled"] = previous_running
             messagebox.showerror(APP_NAME, f"Could not save settings:\n{error}", parent=self.root)
             return
-        self.toggle_button.configure(text="Pause" if self.running else "Resume")
+        button_colors = PAUSE_BUTTON_COLORS if self.running else PLAY_BUTTON_COLORS
+        self.toggle_button.configure(
+            text="⏸ Pause" if self.running else "▶ Play",
+            bg=button_colors[0],
+            activebackground=button_colors[1],
+        )
         if not self.running:
             self.close_overlay()
-            self.status_var.set("Paused. Your schedule will resume when you press Resume.")
+            self.timer_line_var.set("Paused")
         else:
             self.last_input = self.get_last_input_time()
-            self.status_var.set("Active. Night light will start after your work interval.")
 
     def setup_tray(self):
         try:
             import pystray
             from PIL import Image, ImageDraw
         except ImportError:
-            self.status_var.set("Tray support is unavailable. Install requirements.txt to hide EyeSee.")
             return
 
         image = Image.new("RGBA", (64, 64), (23, 63, 59, 255))
@@ -308,6 +398,13 @@ class EyeSeeApp:
             rounded += timedelta(minutes=1)
         return rounded.strftime("%H:%M")
 
+    def set_timer_line(self, remaining_seconds, next_transition):
+        remaining = max(0, int(remaining_seconds))
+        next_at = self.rounded_time(remaining)
+        self.timer_line_var.set(
+            f"Countdown: {remaining // 60}:{remaining % 60:02d}    Next {next_transition} at: {next_at}"
+        )
+
     def tick(self):
         now = time.monotonic()
         elapsed = max(0.0, now - self.last_tick)
@@ -319,22 +416,13 @@ class EyeSeeApp:
             if self.resting:
                 self.rest_seconds += elapsed
                 remaining = max(0, int(self.settings["rest_minutes"] * 60 - self.rest_seconds))
-                resume_at = self.rounded_time(remaining)
-                self.status_var.set(
-                    f"Night light is on. Resume at {resume_at}. "
-                    f"Time remaining: {remaining // 60}:{remaining % 60:02d}"
-                )
-                self.timestamp_var.set(f"Resume at: {resume_at}")
+                self.set_timer_line(remaining, "active")
                 if self.rest_seconds >= self.settings["rest_minutes"] * 60:
                     self.finish_rest()
             else:
                 self.active_seconds += input_delta
                 remaining = max(0, int(self.settings["work_minutes"] * 60 - self.active_seconds))
-                rest_at = self.rounded_time(remaining)
-                self.status_var.set(
-                    f"Active use countdown: {remaining // 60}:{remaining % 60:02d}."
-                )
-                self.timestamp_var.set(f"Next rest at: {rest_at}")
+                self.set_timer_line(remaining, "rest")
                 if self.active_seconds >= self.settings["work_minutes"] * 60:
                     self.begin_rest()
         self.root.after(1000, self.tick)
@@ -367,12 +455,12 @@ class EyeSeeApp:
                 self.set_system_night_light(True)
                 self.night_light_changed = True
         except RuntimeError as error:
-            self.status_var.set(str(error))
+            self.timer_line_var.set(str(error))
             return
         self.resting = True
         self.rest_seconds = 0
-        self.rest_started_at = self.rounded_time()
-        self.timestamp_var.set(f"Rest started: {self.rest_started_at}")
+        remaining = self.settings["rest_minutes"] * 60
+        self.set_timer_line(remaining, "active")
 
     def close_overlay(self):
         if self.night_light_changed:
@@ -383,13 +471,20 @@ class EyeSeeApp:
             self.night_light_changed = False
         self.resting = False
         self.rest_seconds = 0
-        self.rest_started_at = None
 
     def finish_rest(self):
         self.close_overlay()
-        completed_at = self.rounded_time()
-        self.timestamp_var.set(f"Rest completed: {completed_at}")
-        self.status_var.set(f"Rest complete at {completed_at}. Your active-use timer has started again.")
+        remaining = self.settings["work_minutes"] * 60
+        self.set_timer_line(remaining, "rest")
+        if self.settings["alarm"]:
+            threading.Thread(target=self.play_completion_alarm, daemon=True).start()
+
+    @staticmethod
+    def play_completion_alarm():
+        try:
+            winsound.Beep(888, 500)
+        except (RuntimeError, OSError):
+            pass
 
     def system_night_light_enabled(self):
         try:
