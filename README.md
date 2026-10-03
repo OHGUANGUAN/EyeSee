@@ -4,6 +4,16 @@ EyeSee is a small Windows desktop app that tracks active laptop use and enables 
 
 The timer starts automatically when EyeSee opens. The window is 350 pixels wide and resizes its height to fit the settings panel.
 
+When the rest timer ends, EyeSee will provide a beep to inform the user that the rest time is over.
+
+## Download
+
+1. Install Python 3 from [python.org](https://www.python.org/downloads/windows/). In the installer, select **Add python.exe to PATH** so EyeSee can find `python` and `pythonw`.
+2. Download EyeSee in one of two ways:
+   - **ZIP:** on the [EyeSee GitHub page](https://github.com/OHGUANGUAN/EyeSee), click **Code** > **Download ZIP**, then right-click the downloaded file and choose **Extract All...**.
+   - **Git:** run `git clone https://github.com/OHGUANGUAN/EyeSee.git`.
+3. Move the EyeSee folder somewhere permanent, such as `C:\Users\<you>\EyeSee`. Keep it there if you set EyeSee to start at log on (see below), because the task points to this folder.
+
 ## Run
 
 Double-click `EyeSee.bat` to start EyeSee without opening a console window. The batch file launches `eye_see.py` with `pythonw`.
@@ -34,17 +44,17 @@ EyeSee works best when it starts as soon as you log on. That way the timer is al
 
 ### Windows (Task Scheduler)
 
-1. Find the full path to `pythonw.exe` by running `where pythonw` in PowerShell.
-2. Open **Task Scheduler** and click **Create Task...** (not *Create Basic Task*).
-3. **General** tab: name the task `EyeSee` and select **Run only when user is logged on**.
-4. **Triggers** tab: click **New...**, set *Begin the task* to **At log on**, choose **Specific user** (your account), and click **OK**.
-5. **Actions** tab: click **New...** and set:
-   - *Program/script*: the full path to `pythonw.exe` from step 1
-   - *Add arguments*: `eye_see.py`
+1. Open **Task Scheduler** and click **Create Task...** (not *Create Basic Task*).
+2. **General** tab: name the task `EyeSee` and select **Run only when user is logged on**.
+3. **Triggers** tab: click **New...**, set *Begin the task* to **At log on**, choose **Specific user** (your account), and click **OK**.
+4. **Actions** tab: click **New...** and set:
+   - *Program/script*: the full path to `EyeSee.bat`, for example `C:\Users\<you>\EyeSee\EyeSee.bat`
    - *Start in*: the EyeSee folder, for example `C:\Users\<you>\EyeSee`
-6. **Conditions** tab: clear **Start the task only if the computer is on AC power**, or EyeSee will not start when your laptop is on battery.
-7. **Settings** tab: clear **Stop the task if it runs longer than 3 days**, so Windows does not close EyeSee during long sessions.
-8. Click **OK**. To test the task, right-click it and choose **Run**.
+
+   Point the task at `EyeSee.bat`, not `eye_see.py`. The batch file checks that Python is installed and starts EyeSee with `pythonw`, so no console window stays open. A console window may flash briefly at log on while the batch file runs.
+5. **Conditions** tab: clear **Start the task only if the computer is on AC power**, or EyeSee will not start when your laptop is on battery.
+6. **Settings** tab: clear **Stop the task if it runs longer than 3 days**, so Windows does not close EyeSee during long sessions.
+7. Click **OK**. To test the task, right-click it and choose **Run**.
 
 ## Settings
 
