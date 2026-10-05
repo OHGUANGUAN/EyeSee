@@ -16,6 +16,7 @@ APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen
 APP_DATA_DIR = APP_DIR
 SETTINGS_FILE = os.path.join(APP_DATA_DIR, "settings.json")
 ICON_FILE = os.path.join(APP_DIR, "assets", "eyesee.ico")
+LOGO_FILE = os.path.join(APP_DIR, "assets", "eyesee_logo_512.png")
 DEFAULTS = {"work_minutes": 60, "rest_minutes": 10, "prompt": True, "alarm": False, "enabled": True}
 PAUSE_BUTTON_COLORS = ("#c0392b", "#a93226")
 PLAY_BUTTON_COLORS = ("#1f6b45", "#175536")
@@ -40,10 +41,7 @@ class EyeSeeApp:
             pass
         self.root = tk.Tk()
         self.root.title(APP_NAME)
-        try:
-            self.root.iconbitmap(default=ICON_FILE)
-        except tk.TclError:
-            pass
+        self.set_window_icon()
         self.root.geometry("350x1")
         self.root.resizable(False, False)
         self.root.protocol("WM_DELETE_WINDOW", self.close_app)
@@ -355,6 +353,23 @@ class EyeSeeApp:
             self.timer_line_var.set("Paused")
         else:
             self.last_input = self.get_last_input_time()
+
+    def set_window_icon(self):
+        try:
+            from PIL import Image, ImageTk
+
+            logo = Image.open(LOGO_FILE)
+            # Pre-scaled copies let Windows pick a crisp size for the title bar and taskbar.
+            self.window_icons = [
+                ImageTk.PhotoImage(logo.resize((size, size), Image.LANCZOS))
+                for size in (256, 128, 64, 48, 32, 16)
+            ]
+            self.root.iconphoto(True, *self.window_icons)
+        except (ImportError, OSError, tk.TclError):
+            try:
+                self.root.iconbitmap(default=ICON_FILE)
+            except tk.TclError:
+                pass
 
     def setup_tray(self):
         try:
