@@ -15,6 +15,7 @@ APP_NAME = "EyeSee"
 APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__))
 APP_DATA_DIR = APP_DIR
 SETTINGS_FILE = os.path.join(APP_DATA_DIR, "settings.json")
+ICON_FILE = os.path.join(APP_DIR, "assets", "eyesee.ico")
 DEFAULTS = {"work_minutes": 60, "rest_minutes": 10, "prompt": True, "alarm": False, "enabled": True}
 PAUSE_BUTTON_COLORS = ("#c0392b", "#a93226")
 PLAY_BUTTON_COLORS = ("#1f6b45", "#175536")
@@ -33,8 +34,16 @@ class EyeSeeApp:
         self.night_light_changed = False
         self.tray_icon = None
 
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_NAME)
+        except (AttributeError, OSError):
+            pass
         self.root = tk.Tk()
         self.root.title(APP_NAME)
+        try:
+            self.root.iconbitmap(default=ICON_FILE)
+        except tk.TclError:
+            pass
         self.root.geometry("350x1")
         self.root.resizable(False, False)
         self.root.protocol("WM_DELETE_WINDOW", self.close_app)
@@ -354,10 +363,13 @@ class EyeSeeApp:
         except ImportError:
             return
 
-        image = Image.new("RGBA", (64, 64), (23, 63, 59, 255))
-        draw = ImageDraw.Draw(image)
-        draw.ellipse((15, 15, 49, 49), fill=(242, 184, 91, 255))
-        draw.ellipse((27, 11, 52, 36), fill=(23, 63, 59, 255))
+        try:
+            image = Image.open(ICON_FILE)
+        except OSError:
+            image = Image.new("RGBA", (64, 64), (23, 63, 59, 255))
+            draw = ImageDraw.Draw(image)
+            draw.ellipse((15, 15, 49, 49), fill=(242, 184, 91, 255))
+            draw.ellipse((27, 11, 52, 36), fill=(23, 63, 59, 255))
         menu = pystray.Menu(
             pystray.MenuItem("Show EyeSee", self.tray_show),
             pystray.MenuItem("Pause / Resume", self.tray_toggle),
