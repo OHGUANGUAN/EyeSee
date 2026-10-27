@@ -2,7 +2,7 @@
 
 EyeSee is a small Windows desktop app that tracks active laptop use and enables the built-in Windows Night light after a configurable interval.
 
-The timer starts automatically when EyeSee opens. The window is 350 pixels wide and resizes its height to fit the settings panel.
+The timer starts automatically when EyeSee opens. A progress ring shows the time left until your next rest (or until the rest ends), along with the clock time it will happen.
 
 When the rest timer ends, EyeSee will provide a beep to inform the user that the rest time is over.
 
@@ -27,6 +27,10 @@ python eye_see.py
 Python must be installed and available as `python` and `pythonw`.
 
 When `pystray` and `Pillow` are installed, EyeSee also appears in the Windows system tray. Right-click the EyeSee tray icon to show the settings, pause/resume, or exit the app. Without those optional packages, the main window still works normally.
+
+## Pin to the Taskbar
+
+While EyeSee is running, right-click its taskbar button and choose **Pin to taskbar**. The pin keeps the EyeSee icon and starts EyeSee directly (with `pythonw`, so no console window appears). If you pinned an older version that shows the Python icon, unpin it first, start EyeSee, and pin it again. If you move the EyeSee folder later, pin it again so the shortcut points to the new location.
 
 ## Optional Tray Support
 
@@ -58,9 +62,9 @@ EyeSee works best when it starts as soon as you log on. That way the timer is al
 
 ## Settings
 
-The default schedule is a 60-minute work interval, a 10-minute rest, and a prompt before Night light starts. Use **Save schedule** to change the intervals. Click the ⚙ button to show the preferences (prompt before rest, beep when rest ends) and use **Save preferences** to keep them. Work intervals can be 1 to 1440 minutes; rests can be 1 to 180 minutes.
+The default schedule is a 60-minute work interval, a 10-minute rest, and a prompt before Night light starts. Click the ⚙ button to open the **Settings** window beside EyeSee. Under **Schedule**, use the **−** and **+** buttons to change the intervals, or type a number and press Enter. Under **Preferences**, turn on or off asking before a rest and the beep when a rest ends. Changes save automatically. Close the window, press Esc, or click ⚙ again to hide it. Work intervals can be 1 to 1440 minutes; rests can be 1 to 180 minutes.
 
-The timer counts active input time, rather than time the laptop is idle. During a rest, Windows Night light changes the display without blocking keyboard or mouse activity. Closing the window ends the app process and restores Night light if EyeSee enabled it. Settings are saved as `settings.json` beside the script. This file is created on first save and is excluded from git, so each user keeps their own preferences.
+The work timer keeps counting while you use the computer, including when EyeSee is minimized or behind other apps. It only stops counting after 5 minutes with no keyboard or mouse input, so time spent away from the computer is not counted. During a rest, Windows Night light changes the display without blocking keyboard or mouse activity. Closing the window ends the app process and restores Night light if EyeSee enabled it. Settings are saved as `settings.json` beside the script. This file is created on first save and is excluded from git, so each user keeps their own preferences.
 
 ## Privacy
 
