@@ -19,7 +19,7 @@ APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 ICON_FILE = os.path.join(APP_DIR, "assets", "eyesee.ico")
 LOGO_FILE = os.path.join(APP_DIR, "assets", "eyesee_logo_512.png")
-DEFAULTS = {"work_minutes": 60, "rest_minutes": 10, "prompt": True, "alarm": False}
+DEFAULTS = {"work_minutes": 60, "rest_minutes": 10, "prompt": True, "alarm": False, "night_light": True}
 WORK_MINUTES_RANGE = (1, 1440)
 REST_MINUTES_RANGE = (1, 180)
 # The work timer keeps counting until there has been no keyboard or mouse input for this long.
@@ -400,6 +400,7 @@ class EyeSeeApp:
         self.rest_var = tk.StringVar(value=str(self.settings["rest_minutes"]))
         self.prompt_var = tk.BooleanVar(value=self.settings["prompt"])
         self.alarm_var = tk.BooleanVar(value=self.settings["alarm"])
+        self.night_light_var = tk.BooleanVar(value=self.settings["night_light"])
 
     def build_settings_window(self):
         background = THEME["background"]
@@ -420,12 +421,14 @@ class EyeSeeApp:
         schedule = self.add_card(page)
         self.add_stepper_row(schedule, "Work interval", "Active use before a rest", self.work_var, *WORK_MINUTES_RANGE, 5)
         self.add_divider(schedule)
-        self.add_stepper_row(schedule, "Night light rest", "Rest length", self.rest_var, *REST_MINUTES_RANGE, 1)
+        self.add_stepper_row(schedule, "Rest break", "Rest length", self.rest_var, *REST_MINUTES_RANGE, 1)
 
         tk.Frame(page, bg=background, height=px(self.root, 12)).pack(fill="x")
         self.add_section_label(page, "Preferences")
         preferences = self.add_card(page)
-        self.add_switch_row(preferences, "Ask before resting", "Confirm before Night light starts", self.prompt_var)
+        self.add_switch_row(preferences, "Night light during rest", "Filter blue light while resting", self.night_light_var)
+        self.add_divider(preferences)
+        self.add_switch_row(preferences, "Ask before resting", "Confirm before a rest starts", self.prompt_var)
         self.add_divider(preferences)
         self.add_switch_row(preferences, "Beep when rest ends", "A short sound calls you back", self.alarm_var)
         return window
@@ -701,15 +704,18 @@ class EyeSeeApp:
 
     def save_preferences(self):
         previous_settings = self.settings.copy()
-        self.settings.update({"prompt": self.prompt_var.get(), "alarm": self.alarm_var.get()})
+        self.settings.update({"prompt": self.prompt_var.get(), "alarm": self.alarm_var.get(), "night_light": self.night_light_var.get()})
         try:
             self.save_settings()
         except OSError:
             self.settings = previous_settings
             self.prompt_var.set(self.settings["prompt"])
             self.alarm_var.set(self.settings["alarm"])
+            self.night_light_var.set(self.settings["night_light"])
             self.show_save_state("Could not save", THEME["danger"])
             return False
+        if not self.settings["night_light"]:
+            self.restore_night_light()
         self.show_save_state("Saved")
         return True
 
@@ -868,9 +874,10 @@ class EyeSeeApp:
 
     def show_prompt(self):
         message_flags = 0x00000004 | 0x00000040 | 0x00040000 | 0x00001000
+        question = "Start Windows Night light now?" if self.settings["night_light"] else "Start your rest now?"
         answer = ctypes.windll.user32.MessageBoxW(
             self.root.winfo_id(),
-            "Your eyes have earned a pause.\n\nStart Windows Night light now?",
+            f"Your eyes have earned a pause.\n\n{question}",
             "EyeSee - Time for a visual rest",
             message_flags,
         )
@@ -880,25 +887,29 @@ class EyeSeeApp:
     def start_rest(self):
         if self.resting:
             return
-        try:
-            if not self.system_night_light_enabled():
-                self.set_system_night_light(True)
-                self.night_light_changed = True
-        except RuntimeError as error:
-            self.notice = str(error)
-            return
+        if self.settings["night_light"]:
+            try:
+                if not self.system_night_light_enabled():
+                    self.set_system_night_light(True)
+                    self.night_light_changed = True
+            except RuntimeError as error:
+                self.notice = str(error)
+                return
         self.notice = ""
         self.resting = True
         self.rest_seconds = 0
         self.update_status()
 
-    def stop_rest(self):
+    def restore_night_light(self):
         if self.night_light_changed:
             try:
                 self.set_system_night_light(False)
             except RuntimeError:
                 pass
             self.night_light_changed = False
+
+    def stop_rest(self):
+        self.restore_night_light()
         self.resting = False
         self.rest_seconds = 0
 
